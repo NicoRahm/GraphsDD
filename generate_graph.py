@@ -4,24 +4,29 @@ from igraph import *
 import time
 
 def truncated_power_law(a, N):
-	m = N
+	# Generates N samples from the truncated power law p(x) = Z/x^a 
+	# (we truncate at the number of vertices minus one to ensure the 
+	# DD is suitable)
+	m = N - 1
 	x = np.arange(1, m+1, dtype='float')
 	pmf = 1/x**a
 	pmf /= pmf.sum()
 	return(stats.rv_discrete(values=(range(1, m+1), pmf)).rvs(size = N))
 
 def normal_order(degrees): 
-
+	# Order vertices in normal order according to the prescribed degrees
 	idx = np.argsort(degrees, order = ('in', 'out'))
-
 	return(idx[::-1])
 
 def construct_simple_graph(degrees, verbose = False): 
-
+	# Construct a directed with the exact prescribed degree sequence 
+	# using Havel-Hakimi greedy algorithm (in the cases it is possible)
+	
 	g = Graph(directed = True)
 	n_Vertices = degrees.shape[0]
 	g.add_vertices(n_Vertices)
 
+	# Verify that the sum of in-degrees is equal to the sum of out-degrees
 	sum_in = 0
 	sum_out = 0
 	for i in range(n_Vertices): 
@@ -31,42 +36,61 @@ def construct_simple_graph(degrees, verbose = False):
 	if sum_out != sum_in: 
 		raise RuntimeError("in and out degrees sum do not match...")
 
+	# Initialize the ordering of the vertices 
 	idx = np.array([i for i in range(n_Vertices)])
-
 	current_degrees = degrees
 	idx = normal_order(current_degrees)
 
+	# Loop over the ordered vertices 
 	while current_degrees[idx][0][0] != 0: 
-		d_plus = current_degrees[idx][0][0]
-		index = 1
+
+		d_plus = current_degrees[idx][0][0] # out degree of considered vertex
+		index = 1 # index of the candidate vertex to link
+
+		# Construct the out-neighbourhood 
 		for k in range(d_plus): 
+			# Look for the next vertex which still have a non-empty in-neighbourhood
 			while current_degrees[idx[index]][1] == 0: 
 				index += 1
+
+				# If we reach the end of the vertices list, the degree sequence does not correspond to a simple graph (no loops, multiple edges...)
 				if index == n_Vertices: 
 					raise RuntimeError("No graph with this DD...")
+
 			if verbose:
 				print((idx[0], idx[index]))
+
+			# Add the corresponding edge to the graph
 			g.add_edges([(idx[0], idx[index])])
+
+			# Update the in-degree 
 			current_degrees[idx[index]][1] -= 1
 			index += 1
+
+			# If we reach the end of the vertices list, the degree sequence does not correspond to a simple graph (no loops, multiple edges...)
 			if index == n_Vertices and k < d_plus - 1: 
 				raise RuntimeError("No graph with this DD...")
+		# Update the out-degree
 		current_degrees[idx[0]][0] = 0
+		# Re-sort the vertices with this new DD
 		idx = normal_order(current_degrees)
-
-	# print(current_degrees)
 
 	return(g)
 
 def generate_degree_sequence(n_Vertices, distribution = "poisson", l = 5, a = 3):
+	# Generates a degree sequence which follows a given distribution
 
+	# Sample degrees from distribution
 	if distribution == 'poisson':
 		in_degrees = np.random.poisson(lam = l, size = n_Vertices) + 1  
 		out_degrees = np.random.poisson(lam = l, size  = n_Vertices) + 1
-	if distribution == 'power':
+	elif distribution == 'power':
 		in_degrees = truncated_power_law(a = a , N = n_Vertices)  
-		out_degrees = truncated_power_law(a = a, N = n_Vertices)  
+		out_degrees = truncated_power_law(a = a, N = n_Vertices)
+	else: 
+		raise RuntimeError("Unknown distribution... Please chose a degree distribution from this list : poisson, power")  
 
+	# Make the degree sequence suitable for a graph (sum of in-degrees equal to sum of out-degrees)
 	diff = np.sum(in_degrees) - np.sum(out_degrees)
 	for k in range(np.abs(diff)):
 		u = np.random.uniform(0,1,size = 1)
@@ -84,10 +108,10 @@ def generate_degree_sequence(n_Vertices, distribution = "poisson", l = 5, a = 3)
 
 
 
+	# Construct the data structure to stor the degree sequence
 	degrees = np.array([(0,0) for k in range(n_Vertices)],  dtype = [('in', '<i4'), ('out', '<i4')])
 
 	for i in range(n_Vertices): 
-
 		degrees[i][0] = out_degrees[i]
 		degrees[i][1] = in_degrees[i]
 
@@ -105,11 +129,11 @@ if __name__ == '__main__':
 	print('In degrees : ', g.degree(type = 'in'))
 	plot(g)
 
-	degrees = generate_degree_sequence(20000, distribution = "power", a = 2)
+	degrees = generate_degree_sequence(1000, distribution = "power", a = 2)
 	# print(degrees)
 
 	start = time.time()
 	g = construct_simple_graph(degrees)
 	end = time.time()
 	print("Execution time : ", end - start, "s")
-	# plot(g)
+	plot(g)
