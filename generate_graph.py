@@ -117,6 +117,30 @@ def generate_degree_sequence(n_Vertices, distribution = "poisson", l = 5, a = 3)
 
 	return(degrees)
 
+def swap_edges(g, edge1, edge2): 
+	new_edge1 = (edge1.tuple[0], edge2.tuple[1])
+	new_edge2 = (edge2.tuple[0], edge1.tuple[1])
+	g.delete_edges([edge1, edge2])
+
+	g.add_edges([new_edge1, new_edge2])
+
+def swap_random_edges(g, n_swap): 
+
+	for i in range(n_swap): 
+		edges = []
+		list_edges = []
+		for e in g.es: 
+			edges.append(e)
+			list_edges.append(e.tuple)
+
+		edges = np.array(edges)
+		edge1 = (0,0)
+		edge2 = (0,0)
+		while edge1[0] == edge2[1] or edge1[1] == edge2[0] or list_edges.count((edge1[0], edge2[1])) > 0 or list_edges.count((edge2[0], edge1[1])):
+			selected_edges = np.random.choice(edges, 2, replace = False)
+			edge1 = selected_edges[0].tuple
+			edge2 = selected_edges[1].tuple
+		swap_edges(g, selected_edges[0], selected_edges[1])
 
 if __name__ == '__main__': 
 
@@ -129,11 +153,22 @@ if __name__ == '__main__':
 	print('In degrees : ', g.degree(type = 'in'))
 	plot(g)
 
-	degrees = generate_degree_sequence(1000, distribution = "power", a = 2)
+	degrees = generate_degree_sequence(100, distribution = "power", a = 2)
 	# print(degrees)
 
 	start = time.time()
 	g = construct_simple_graph(degrees)
 	end = time.time()
 	print("Execution time : ", end - start, "s")
+	print('Out degrees : ', g.degree(type = 'out'))
+	print('In degrees : ', g.degree(type = 'in'))
 	plot(g)
+	print("Is loop?", g.is_loop().count(True))	
+	print("Is multiple?", g.is_multiple().count(True))
+
+	swap_random_edges(g,100)
+	print('Out degrees : ', g.degree(type = 'out'))
+	print('In degrees : ', g.degree(type = 'in'))
+	plot(g)
+	print("Is loop?", g.is_loop().count(True))	
+	print("Is multiple?", g.is_multiple().count(True))
