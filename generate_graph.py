@@ -4,6 +4,8 @@ from igraph import *
 import time
 import copy
 from scipy.spatial.distance import hamming
+import editdistance
+import matplotlib.pyplot as plt 
 
 def truncated_power_law(a, N):
 	# Generates N samples from the truncated power law p(x) = Z/x^a 
@@ -155,15 +157,21 @@ def construct_simple_graph(degrees, verbose = False):
 
 	return(g)
 
-def generate_degree_sequence(n_Vertices, distribution = "poisson", l = 5, a = 3):
+def generate_degree_sequence(n_Vertices, in_distribution = "poisson", out_distribution = "poisson", l = 5, a = 3):
 	# Generates a degree sequence which follows a given distribution
 
-	# Sample degrees from distribution
-	if distribution == 'poisson':
+	# Sample in-degrees from distribution
+	if in_distribution == 'poisson':
 		in_degrees = np.random.poisson(lam = l, size = n_Vertices)  
-		out_degrees = np.random.poisson(lam = l, size  = n_Vertices) + 1
-	elif distribution == 'power':
+	elif in_distribution == 'power':
 		in_degrees = truncated_power_law(a = a , N = n_Vertices)  
+	else: 
+		raise RuntimeError("Unknown distribution... Please chose a degree distribution from this list : poisson, power")  
+
+	# Sample out-degrees from distribution
+	if out_distribution == 'poisson':
+		out_degrees = np.random.poisson(lam = l, size  = n_Vertices) + 1
+	elif out_distribution == 'power':
 		out_degrees = truncated_power_law(a = a, N = n_Vertices)
 	else: 
 		raise RuntimeError("Unknown distribution... Please chose a degree distribution from this list : poisson, power")  
@@ -201,12 +209,24 @@ def generate_degree_sequence(n_Vertices, distribution = "poisson", l = 5, a = 3)
 
 	return(degrees)
 
-def swap_edges(g, edge1, edge2): 
+def swap_2_edges(g, edge1, edge2): 
 	new_edge1 = (edge1.tuple[0], edge2.tuple[1])
 	new_edge2 = (edge2.tuple[0], edge1.tuple[1])
 	g.delete_edges([edge1, edge2])
 
 	g.add_edges([new_edge1, new_edge2])
+
+def swap_k_edges(g, edges): 
+	edges = list(edges)
+	
+	l = len(edges)
+	for i in range(1, l+1): 
+		new_edge1 = (edges[i-1].tuple[0], edges[i%l].tuple[1])
+		new_edge2 = (edges[i%l].tuple[0], edges[i-1].tuple[1])
+
+		g.add_edges([new_edge1, new_edge2])
+	
+	g.delete_edges(edges)
 
 def swap_random_edges(g, n_swap): 
 
@@ -224,12 +244,120 @@ def swap_random_edges(g, n_swap):
 			selected_edges = np.random.choice(edges, 2, replace = False)
 			edge1 = selected_edges[0].tuple
 			edge2 = selected_edges[1].tuple
-		swap_edges(g, selected_edges[0], selected_edges[1])
+		swap_2_edges(g, selected_edges[0], selected_edges[1])
+
+def swap_k_random_edges(g, n_swap, k = 4): 
+	for i in range(n_swap): 
+		edges = []
+		list_edges = []
+		for e in g.es: 
+			edges.append(e)
+			list_edges.append(e.tuple)
+
+
+
+		edges = np.array(edges)
+
+		self_loop = True
+		multiple = True
+		nb_it = 0
+		while self_loop or multiple:
+			selected_edges = np.random.choice(edges, k, replace = False)
+			g_copy = copy.deepcopy(g)
+			swap_k_edges(g_copy, selected_edges)
+			self_loop = g_copy.is_loop().count(True) > 0
+			multiple = g_copy.is_multiple().count(True) > 0
+			if nb_it > 10000:
+				print("Stopped at", nb_it - 1, "iterations for n_swap =", i + 1)
+				break
+			nb_it += 1
+		if nb_it <= 10000:
+			swap_k_edges(g, selected_edges)
+
+def swap_seperates(g):
+	n=g.vcount()
+	ind1=np.random.randint(n)
+	ld=g.get_adjlist("ALL")[ind1]
+	if (len(ld)<2):
+		return 0
+	ind2=np.random.choice(ld)
+	ld.remove(ind2)
+	li=g.get_adjlist("ALL")[ind2]
+	li.remove(ind1)
+	if (len(li)==0):
+		return 0
+	ind3=np.random.choice(li)
+	if (ind3 in ld):
+		return 0
+	l3=g.get_adjlist("OUT")[ind3]
+	if (ind1 in l3):
+		l3.remove(ind1)	
+	if (ind2 in l3):
+		l3.remove(ind2)
+	if (len(l3)==0):
+		return 0
+	l4=g.get_adjlist("IN")[ind1]
+	if (ind2 in l4):
+		l4.remove(ind2)	
+	if (ind3 in l4):
+		l4.remove(ind3)
+	if (len(l4)==0):
+		return 0
+	to_remove_ind1=np.random.choice(l4)
+	to_remove_ind3=np.random.choice(l3)
+    
+	g.delete_edges((to_remove_ind1,ind1))
+	g.delete_edges((ind3,to_remove_ind3))
+	g.add_edges([(ind3,ind1), (to_remove_ind1,to_remove_ind3)])
+	if(g.is_loop().count(True)>0 or  g1.is_multiple().count(True)   >0 ):
+		g.delete_edges((ind3,ind1))
+		g.delete_edges((to_remove_ind1,to_remove_ind3))
+		g.add_edges([(to_remove_ind1,ind1), (ind3,to_remove_ind3)])        
+		return 0	  
+	return 1
+
+
 
 def hamming_distance(g1,g2): 
 	Adj1 = np.asarray(list(g1.get_adjacency()))
 	Adj2 = np.asarray(list(g2.get_adjacency()))
-	return(hamming(Adj1.flatten(), Adj2.flatten()))
+	return(int(hamming(Adj1.flatten(), Adj2.flatten())*Adj1.shape[0]**2))
+
+def edit_distance(g1,g2):
+	Adj1 = np.asarray(list(g1.get_adjacency()))
+	Adj2 = np.asarray(list(g2.get_adjacency()))
+	return(editdistance.eval(Adj1.flatten(), Adj2.flatten()))
+
+def analyse_graph(g): 
+	print("Number of loops :", g.is_loop().count(True))	
+	print("Number of multiple edges :", g.is_multiple().count(True))
+	print("Vertex connectivity :", g.as_undirected().vertex_disjoint_paths(checks = True))
+	print("Edge connectivity :", g.as_undirected().edge_disjoint_paths(checks = True))
+	C = g.as_undirected().community_infomap()
+	print("Number of connected components :", len(g.as_undirected().clusters().as_cover()))
+	plot(C)
+
+def djikstra_distance(g1,g2): 
+
+	d1=np.array(g1.shortest_paths_dijkstra())
+	d2=np.array(g2.shortest_paths_dijkstra())
+	thresh = np.max(d1[d1 != np.inf])
+	d1[d1 > thresh] = thresh
+	thresh = np.max(d2[d2 != np.inf])
+	d2[d2 > thresh] = thresh
+	h1, b1 = np.histogram(d1, bins = int(d1.shape[0]/10))
+	h2, b2 = np.histogram(d2, bins = int(d1.shape[0]/10))
+	return((np.log(1+(h1-h2)**2 /(h1.shape[0]))).sum())
+
+def pagerank_distance(g1,g2): 
+	p1=np.array(g1.pagerank())
+	p2=np.array(g2.pagerank())
+
+	h1, b1 = np.histogram(p1, bins = int(p1.shape[0]/10))
+	h2, b2 = np.histogram(p2, bins = int(p1.shape[0]/10))
+	return((np.log(1+(h1-h2)**2 /(h1.shape[0]))).sum())
+
+
 
 if __name__ == '__main__': 
 
@@ -242,8 +370,7 @@ if __name__ == '__main__':
 	print('In degrees : ', g.degree(type = 'in'))
 	plot(g)
 
-	degrees = generate_degree_sequence(100, distribution = "power", a = 2)
-	# print(degrees)
+	degrees = generate_degree_sequence(50, in_distribution = "power", out_distribution = 'power', l = 1, a = 2)
 
 	start = time.time()
 	g1 = construct_simple_graph(degrees)
@@ -252,16 +379,24 @@ if __name__ == '__main__':
 	# print('Out degrees : ', g.degree(type = 'out'))
 	# print('In degrees : ', g.degree(type = 'in'))
 	plot(g1)
-	print("Is loop?", g1.is_loop().count(True))	
-	print("Is multiple?", g1.is_multiple().count(True))
-
 	g2 = copy.deepcopy(g1)
 
-	swap_random_edges(g2,500)
+	analyse_graph(g1)
+
+	plt.hist(np.array(g1.pagerank()), bins = 10)
+	plt.show()
+	# swap_random_edges(g2,50)
+	swap_k_random_edges(g2,10, k = 10)
+
 	# print('Out degrees : ', g.degree(type = 'out'))
 	# print('In degrees : ', g.degree(type = 'in'))
 	plot(g2)
-	print("Is loop?", g2.is_loop().count(True))	
-	print("Is multiple?", g2.is_multiple().count(True))
+	analyse_graph(g2)
+	plt.hist(np.array(g2.pagerank()), bins = 10)
+	plt.show()
 
 	print('Hamming distance :', hamming_distance(g1,g2))
+	# print('Levenshtein distance :', edit_distance(g1,g2))
+	print('Djikstra distance :', djikstra_distance(g1,g2))
+	print('Pagerank distance :', pagerank_distance(g1,g2))
+
