@@ -317,6 +317,19 @@ def swap_seperates(g):
 	return 1
 
 
+def generate_erdos_renyi(n, p): 
+
+	g = Graph(directed = True)
+	g.add_vertices(n)
+
+	for i in range(n):
+		for j in range(n): 
+			u = np.random.uniform(0,1)
+			if j!= i and u < p:
+				g.add_edges([(i,j)])
+
+	return(g) 
+
 
 def hamming_distance(g1,g2): 
 	Adj1 = np.asarray(list(g1.get_adjacency()))
@@ -361,6 +374,9 @@ def pagerank_distance(g1,g2):
 
 if __name__ == '__main__': 
 
+	g_er = generate_erdos_renyi(50, 0.1)
+	plot(g_er)
+
 	degrees = np.array([(3,3), (0,1), (2,1), (1,2), (3,2)], dtype = [('in', '<i4'), ('out', '<i4')])
 	idx = normal_order(degrees)
 	print(degrees[idx])
@@ -385,8 +401,8 @@ if __name__ == '__main__':
 
 	plt.hist(np.array(g1.pagerank()), bins = 10)
 	plt.show()
-	# swap_random_edges(g2,50)
-	swap_k_random_edges(g2,10, k = 10)
+	swap_random_edges(g2,50)
+	# swap_k_random_edges(g2,10, k = 10)
 
 	# print('Out degrees : ', g.degree(type = 'out'))
 	# print('In degrees : ', g.degree(type = 'in'))
