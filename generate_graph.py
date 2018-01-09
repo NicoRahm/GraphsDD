@@ -871,29 +871,35 @@ def pagerank_distance(g1,g2):
 	return((np.log(1+(h1-h2)**2 /(h1.shape[0]))).sum())
 
 
-def test_distance_swap(n_graphs = 100, n_vertices = 100, n_swap_max = 100, in_distribution = "power", out_distribution = 'power', l = 1, a = 2): 
+def test_distance_swap(n_graphs = 4, n_samples = 100, n_vertices = 100, n_swap_max = 100, sequentially = True, in_distribution = "power", out_distribution = 'power', l = 1, a = 2): 
 	n_g = 10
-	distances_hamming = np.zeros((n_graphs, n_g+1, n_g+1))
-	distances_djikstra = np.zeros((n_graphs, n_g+1, n_g+1))
-	distances_pagerank = np.zeros((n_graphs, n_g+1, n_g+1))
+	distances_hamming = np.zeros((n_samples, (n_g+1)*n_graphs, (n_g+1)*n_graphs))
+	distances_djikstra = np.zeros((n_samples, (n_g+1)*n_graphs, (n_g+1)*n_graphs))
+	distances_pagerank = np.zeros((n_samples, (n_g+1)*n_graphs, (n_g+1)*n_graphs))
 
-	for i in range(n_graphs): 
+	for i in range(n_samples): 
 		graphs = []
-		g_init = Graph(directed = True)
-		while not g_init.es:
-			degrees = generate_degree_sequence(n_vertices, 
-											   in_distribution = in_distribution, 
-											   out_distribution = out_distribution, 
-											   l = l, 
-											   a = a)
-			g_init = construct_simple_graph_HH(degrees)
+		for j in range(n_graphs):
+			g_init = Graph(directed = True)
+			while not g_init.es:
+				degrees = generate_degree_sequence(n_vertices, 
+												   in_distribution = in_distribution, 
+												   out_distribution = out_distribution, 
+												   l = l, 
+												   a = a)
+				g_init = construct_simple_graph_sampling(degrees)
 
-		graphs.append(g_init)
-		n_swaps = [int(n_swap_max*(k+1)/(n_g)) for k in range(n_g)]
-		for k in range(n_g): 
-			graphs.append(copy.deepcopy(graphs[0]))
-			swap_random_edges(graphs[k+1], n_swap = n_swaps[k])
-
+			graphs.append(g_init)
+			if sequentially:
+				n_swaps = int(n_swap_max/(n_g))
+				for k in range(n_g): 
+					graphs.append(copy.deepcopy(graphs[j*(n_g+1) + k]))
+					swap_random_edges(graphs[j*(n_g+1) + k+1], n_swap = n_swaps)
+			else: 
+				n_swaps = [int(n_swap_max*(k+1)/(n_g)) for k in range(ng)]
+				for k in range(n_g): 
+					graphs.append(copy.deepcopy(graphs[j*(n_g+1)]))
+					swap_random_edges(graphs[j*(n_g+1) + k+1], n_swap = n_swaps[k])
 		k1 = 0
 		for g1 in graphs:
 			k2 = 0
@@ -978,7 +984,10 @@ if __name__ == '__main__':
 	plot(g1)
 	plot(g2)
 
-	d_H, d_D, d_P = test_distance_swap(20, 100, 1000)
+	d_H, d_D, d_P = test_distance_swap(n_samples = 50, 
+									   n_graphs = 2, 
+									   n_vertices = 100, 
+									   n_swap_max = 1000)
 
 	print("d_H :", d_H)
 	print("d_D :", d_D)
