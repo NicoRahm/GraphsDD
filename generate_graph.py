@@ -114,9 +114,9 @@ def compute_edges_HH(degrees, verbose = False):
 		
 		n-=1
 	t = time.time() - start1
-	print("Total execution time : ", t, "s")
-	print("Mean sort time :", t_sort, "s")
-	print("Mean reorder time :", t_reorder, "s")
+	# print("Total execution time : ", t, "s")
+	# print("Mean sort time :", t_sort, "s")
+	# print("Mean reorder time :", t_reorder, "s")
 
 
 	return(all_edges)
@@ -916,6 +916,34 @@ def test_distance_swap(n_graphs = 4, n_samples = 100, n_vertices = 100, n_swap_m
 		   np.mean(distances_pagerank, axis = 0))
 
 
+def test_time(n_ech = 100): 
+
+	t_HH = 0
+	t_config = 0
+	t_sampling = 0
+	for i in range(n_ech):
+		print('Echantillon', i+1)
+		degrees = generate_degree_sequence(200, in_distribution = "power", out_distribution = 'power', l = 1, a = 2)
+		
+		start = time.time()
+		g = construct_simple_graph_HH(degrees)
+		for j in range(100):
+			swap_random_edges(g, 2*len(g.es))
+		t_HH += time.time() - start
+
+		start = time.time()
+		for j in range(100):
+			g = construct_simple_graph_random_edge(degrees)
+		t_config += time.time() - start
+
+		start = time.time()
+		for j in range(100): 
+			g = construct_simple_graph_sampling(degrees)
+		t_sampling += time.time() - start 
+
+	return(t_HH/n_ech, t_config/n_ech, t_sampling/n_ech)
+
+
 
 if __name__ == '__main__': 
 
@@ -926,6 +954,11 @@ if __name__ == '__main__':
 	# g_smallworld = generate_watts_graph(50, 6, 0.5)
 	# plot(g_smallworld)
 	# hist_degrees(g_smallworld)
+
+	(t_HH, t_config, t_sampling) = test_time(n_ech = 20)
+	print("Execution time Havel-Hakimi :", t_HH)
+	print("Execution time configuration model :", t_config)
+	print("Execution time sampling model :", t_sampling)
 
 	degrees = np.array([(3,3), (0,1), (2,1), (1,2), (3,2)], dtype = [('in', '<i4'), ('out', '<i4')])
 	idx = normal_order(degrees)
